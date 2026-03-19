@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router';
-import type { Game, TournamentSettings } from '../types/index.ts';
-import { getBracket, getSettings, getUserPicks } from '../services/api.ts';
+import type { Game } from '../types/index.ts';
+import { getBracket, getUserPicks } from '../services/api.ts';
 import { buildProjectedGames } from '../utils/bracketLogic.ts';
 import BracketRegion from '../components/BracketRegion.tsx';
 import FinalFour from '../components/FinalFour.tsx';
@@ -12,7 +12,6 @@ const REGIONS_RIGHT = ['West', 'Midwest'];
 export default function UserBracketPage() {
   const { userId } = useParams<{ userId: string }>();
   const [games, setGames] = useState<Game[]>([]);
-  const [settings, setSettings] = useState<TournamentSettings | null>(null);
   const [picks, setPicks] = useState<Map<number, number>>(new Map());
   const [bracketTitle, setBracketTitle] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -24,13 +23,11 @@ export default function UserBracketPage() {
       if (!userId) return;
       try {
         setLoading(true);
-        const [bracketData, settingsData, userData] = await Promise.all([
+        const [bracketData, userData] = await Promise.all([
           getBracket(),
-          getSettings(),
           getUserPicks(userId),
         ]);
         setGames(bracketData);
-        setSettings(settingsData);
         setBracketTitle(userData.user.bracketTitle || `${userData.user.displayName}'s Bracket`);
         setDisplayName(userData.user.displayName);
 
