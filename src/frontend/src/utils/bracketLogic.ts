@@ -98,14 +98,18 @@ export function buildProjectedGames(
             (nextGame.team2 && nextGame.team2.id === advancingTeam.id);
 
           if (!alreadyInGame) {
-            if (isTeam1Slot) {
-              if (!nextGame.team1 || nextGame.team1.name === 'TBD') {
-                nextGame.team1 = { ...advancingTeam };
-              }
-            } else {
-              if (!nextGame.team2 || nextGame.team2.name === 'TBD') {
-                nextGame.team2 = { ...advancingTeam };
-              }
+            // Try preferred slot first, fall back to the other TBD slot
+            const team1IsTBD = !nextGame.team1 || nextGame.team1.name === 'TBD';
+            const team2IsTBD = !nextGame.team2 || nextGame.team2.name === 'TBD';
+
+            if (isTeam1Slot && team1IsTBD) {
+              nextGame.team1 = { ...advancingTeam };
+            } else if (!isTeam1Slot && team2IsTBD) {
+              nextGame.team2 = { ...advancingTeam };
+            } else if (team1IsTBD) {
+              nextGame.team1 = { ...advancingTeam };
+            } else if (team2IsTBD) {
+              nextGame.team2 = { ...advancingTeam };
             }
           }
         }
