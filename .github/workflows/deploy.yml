@@ -69,39 +69,30 @@ jobs:
             JWT_SECRET=${{ secrets.JWT_SECRET }}
             ENVEOF
 
-            # Check if SSL cert exists yet
-            if [ ! -f /etc/letsencrypt/live/bracketology.ca/fullchain.pem ]; then
-              echo "No SSL cert found — running initial setup..."
+            # Build and start services (HTTP only first)
+            docker compose down
+            docker compose up --build -d
 
-              # Start with a temporary self-signed cert so nginx can start
-              mkdir -p /etc/letsencrypt/live/bracketology.ca
-              openssl req -x509 -nodes -days 1 -newkey rsa:2048 \
-                -keyout /etc/letsencrypt/live/bracketology.ca/privkey.pem \
-                -out /etc/letsencrypt/live/bracketology.ca/fullchain.pem \
-                -subj "/CN=bracketology.ca" 2>/dev/null
+            # Wait for frontend to be ready
+            sleep 10
 
-              # Copy temp certs into the volume
-              docker compose up -d frontend
-              docker compose cp /etc/letsencrypt/live/bracketology.ca/fullchain.pem frontend:/etc/letsencrypt/live/bracketology.ca/fullchain.pem
-              docker compose cp /etc/letsencrypt/live/bracketology.ca/privkey.pem frontend:/etc/letsencrypt/live/bracketology.ca/privkey.pem
-
-              # Build and start all services
-              docker compose up --build -d
-
-              # Get real cert from Let's Encrypt
+            # If SSL cert doesn't exist yet, obtain one
+            if [ ! -d "/var/lib/docker/volumes/ncaa_certbot_certs/_data/live/bracketology.ca" ]; then
+              echo "Obtaining SSL certificate..."
               docker compose run --rm certbot certonly \
                 --webroot -w /var/www/certbot \
                 -d bracketology.ca -d www.bracketology.ca \
                 --email andrewmccatty@gmail.com \
                 --agree-tos --no-eff-email
 
-              # Reload nginx with real cert
+              # Switch to SSL nginx config
+              docker compose cp src/frontend/nginx-ssl.conf frontend:/etc/nginx/conf.d/default.conf
               docker compose exec frontend nginx -s reload
+              echo "SSL enabled"
             else
-              # Cert exists — just rebuild and restart
-              docker compose down
-              docker compose up --build -d
+              echo "SSL cert exists, checking if SSL config is active..."
+              docker compose cp src/frontend/nginx-ssl.conf frontend:/etc/nginx/conf.d/default.conf
+              docker compose exec frontend nginx -s reload
             fi
 
-            sleep 10
             docker compose ps
