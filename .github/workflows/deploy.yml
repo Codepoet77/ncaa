@@ -30,17 +30,46 @@ jobs:
           script: |
             cd /opt/ncaa
 
-            # Create .env from GitHub secrets if it doesn't exist
+            # Create .env from GitHub secrets
             cat > .env << 'ENVEOF'
             POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
             GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
             JWT_SECRET=${{ secrets.JWT_SECRET }}
             ENVEOF
 
-            # Build and restart
-            docker compose down
-            docker compose up --build -d
+            # Check if SSL cert exists yet
+            if [ ! -f /etc/letsencrypt/live/bracketology.ca/fullchain.pem ]; then
+              echo "No SSL cert found — running initial setup..."
 
-            # Wait for services to be healthy
+              # Start with a temporary self-signed cert so nginx can start
+              mkdir -p /etc/letsencrypt/live/bracketology.ca
+              openssl req -x509 -nodes -days 1 -newkey rsa:2048 \
+                -keyout /etc/letsencrypt/live/bracketology.ca/privkey.pem \
+                -out /etc/letsencrypt/live/bracketology.ca/fullchain.pem \
+                -subj "/CN=bracketology.ca" 2>/dev/null
+
+              # Copy temp certs into the volume
+              docker compose up -d frontend
+              docker compose cp /etc/letsencrypt/live/bracketology.ca/fullchain.pem frontend:/etc/letsencrypt/live/bracketology.ca/fullchain.pem
+              docker compose cp /etc/letsencrypt/live/bracketology.ca/privkey.pem frontend:/etc/letsencrypt/live/bracketology.ca/privkey.pem
+
+              # Build and start all services
+              docker compose up --build -d
+
+              # Get real cert from Let's Encrypt
+              docker compose run --rm certbot certonly \
+                --webroot -w /var/www/certbot \
+                -d bracketology.ca -d www.bracketology.ca \
+                --email andrewmccatty@gmail.com \
+                --agree-tos --no-eff-email
+
+              # Reload nginx with real cert
+              docker compose exec frontend nginx -s reload
+            else
+              # Cert exists — just rebuild and restart
+              docker compose down
+              docker compose up --build -d
+            fi
+
             sleep 10
             docker compose ps
