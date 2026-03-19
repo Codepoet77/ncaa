@@ -28,7 +28,7 @@ export function buildProjectedGames(
     if (g.team2) teamMap.set(g.team2.id, g.team2);
   }
 
-  // Process rounds in order so picks cascade
+  // Process rounds in order so results and picks cascade
   const maxRound = Math.max(...games.map((g) => g.round));
   const regions = [...new Set(games.map((g) => g.region))];
 
@@ -39,50 +39,48 @@ export function buildProjectedGames(
         .sort((a, b) => a.bracketPosition - b.bracketPosition);
 
       for (const game of roundGames) {
-        const pickedTeamId = picks.get(game.id);
-        if (pickedTeamId == null) continue;
+        // Determine the advancing team: actual winner first, then user pick
+        let advancingTeam: Team | null = null;
 
-        // Find the picked team from game's actual teams or projected teams
         const projectedGame = gameIndex.get(`${game.region}|${game.round}|${game.bracketPosition}`);
-        const pickedTeam =
-          teamMap.get(pickedTeamId) ??
-          (projectedGame?.team1?.id === pickedTeamId ? projectedGame.team1 : null) ??
-          (projectedGame?.team2?.id === pickedTeamId ? projectedGame.team2 : null);
 
-        if (!pickedTeam) continue;
+        if (game.isCompleted && game.winnerId != null) {
+          // Actual result — use the winner
+          advancingTeam = teamMap.get(game.winnerId) ?? null;
+        } else {
+          // User pick
+          const pickedTeamId = picks.get(game.id);
+          if (pickedTeamId != null) {
+            advancingTeam =
+              teamMap.get(pickedTeamId) ??
+              (projectedGame?.team1?.id === pickedTeamId ? projectedGame.team1 : null) ??
+              (projectedGame?.team2?.id === pickedTeamId ? projectedGame.team2 : null);
+          }
+        }
+
+        if (!advancingTeam) continue;
 
         // Determine which next-round game this feeds into
         const nextRound = round + 1;
-        // Map: R_n positions 1,2 → R_{n+1} position 1; positions 3,4 → position 2; etc.
         const nextPosition = Math.ceil(game.bracketPosition / 2);
-
-        // Determine which slot (team1 or team2) in the next game
-        // Odd bracketPosition → team1, even → team2
         const isTeam1Slot = game.bracketPosition % 2 === 1;
 
-        // Find or handle cross-region (Final Four)
+        // Handle cross-region (Final Four / Championship)
         let nextRegion = region;
-        if (round === 4) {
-          // Elite 8 winners go to Final Four
-          nextRegion = 'Final Four';
-        }
-        if (region === 'Final Four' && round === 5) {
-          // Final Four winners go to Championship
-          nextRegion = 'TBD';
-        }
+        if (round === 4) nextRegion = 'Final Four';
+        if (region === 'Final Four' && round === 5) nextRegion = 'TBD';
 
         const nextKey = `${nextRegion}|${nextRound}|${nextPosition}`;
         const nextGame = gameIndex.get(nextKey);
 
         if (nextGame && !nextGame.isCompleted) {
           if (isTeam1Slot) {
-            // Only project if the slot is TBD (no actual team yet)
             if (!nextGame.team1 || nextGame.team1.name === 'TBD') {
-              nextGame.team1 = { ...pickedTeam };
+              nextGame.team1 = { ...advancingTeam };
             }
           } else {
             if (!nextGame.team2 || nextGame.team2.name === 'TBD') {
-              nextGame.team2 = { ...pickedTeam };
+              nextGame.team2 = { ...advancingTeam };
             }
           }
         }
