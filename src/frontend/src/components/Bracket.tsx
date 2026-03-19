@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { Game, UserPick } from '../types/index.ts';
 import type { TournamentSettings } from '../types/index.ts';
 import { getBracket, getSettings, getPicks, submitPicks, getBracketTitle, updateBracketTitle } from '../services/api.ts';
@@ -16,11 +16,12 @@ export default function Bracket() {
   const [settings, setSettings] = useState<TournamentSettings | null>(null);
   const [picks, setPicks] = useState<Map<number, number>>(new Map());
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [bracketTitle, setBracketTitle] = useState<string>('');
   const [editingTitle, setEditingTitle] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const initialLoadRef = useRef(true);
 
   useEffect(() => {
     async function loadData() {
@@ -56,12 +57,39 @@ export default function Bracket() {
         console.error('Failed to load bracket:', err);
       } finally {
         setLoading(false);
+        // Mark initial load complete after a tick so the save effect doesn't fire
+        setTimeout(() => { initialLoadRef.current = false; }, 100);
       }
     }
     loadData();
   }, [isAuthenticated]);
 
-  // Build projected games with user picks overlaid onto future rounds
+  // Auto-save picks whenever they change (debounced)
+  useEffect(() => {
+    if (initialLoadRef.current || !isAuthenticated || picks.size === 0) return;
+
+    setSaveStatus('saving');
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+
+    saveTimeoutRef.current = setTimeout(async () => {
+      try {
+        const picksArray: UserPick[] = Array.from(picks.entries()).map(
+          ([gameId, pickedTeamId]) => ({ gameId, pickedTeamId })
+        );
+        await submitPicks(picksArray);
+        setSaveStatus('saved');
+        setTimeout(() => setSaveStatus('idle'), 2000);
+      } catch (err) {
+        setSaveStatus('error');
+        console.error('Failed to auto-save picks:', err);
+      }
+    }, 500);
+
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, [picks, isAuthenticated]);
+
   const projectedGames = useMemo(
     () => buildProjectedGames(games, picks),
     [games, picks]
@@ -73,11 +101,9 @@ export default function Bracket() {
       const currentPick = next.get(gameId);
 
       if (currentPick === teamId) {
-        // Deselecting — clear this pick and any cascading picks
         next.delete(gameId);
         return clearCascadingPicks(games, next, gameId, teamId);
       } else {
-        // If changing pick, clear cascading picks from old selection
         if (currentPick != null) {
           const cleared = clearCascadingPicks(games, next, gameId, currentPick);
           cleared.set(gameId, teamId);
@@ -87,7 +113,6 @@ export default function Bracket() {
         return next;
       }
     });
-    setSaveMessage(null);
   }, [games]);
 
   const handleSaveTitle = async () => {
@@ -98,24 +123,6 @@ export default function Bracket() {
       setEditingTitle(false);
     } catch (err) {
       console.error('Failed to update title:', err);
-    }
-  };
-
-  const handleSubmitPicks = async () => {
-    if (!isAuthenticated) return;
-    setSaving(true);
-    setSaveMessage(null);
-    try {
-      const picksArray: UserPick[] = Array.from(picks.entries()).map(
-        ([gameId, pickedTeamId]) => ({ gameId, pickedTeamId })
-      );
-      await submitPicks(picksArray);
-      setSaveMessage({ type: 'success', text: 'Picks saved successfully!' });
-    } catch (err) {
-      setSaveMessage({ type: 'error', text: 'Failed to save picks. Please try again.' });
-      console.error('Failed to submit picks:', err);
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -137,8 +144,6 @@ export default function Bracket() {
   }
 
   const isLocked = settings?.isLocked ?? false;
-  const pickableGames = games.filter((g) => !g.isCompleted).length;
-  const completedGames = games.filter((g) => g.isCompleted).length;
 
   const regionGames = (regionName: string) =>
     projectedGames.filter((g) => g.region === regionName && g.round <= 4);
@@ -169,30 +174,15 @@ export default function Bracket() {
               {!isLocked && <span className="bracket-title-edit-icon">&#9998;</span>}
             </h2>
           )}
+          {saveStatus === 'saving' && <span className="auto-save-status saving">Saving...</span>}
+          {saveStatus === 'saved' && <span className="auto-save-status saved">Saved</span>}
+          {saveStatus === 'error' && <span className="auto-save-status error">Failed to save</span>}
         </div>
       )}
 
       {isLocked && (
         <div className="locked-banner">
           Picks are locked - the tournament has begun!
-        </div>
-      )}
-
-      {isAuthenticated && !isLocked && (
-        <div className="submit-bar">
-          <button
-            className="submit-picks-btn"
-            onClick={handleSubmitPicks}
-            disabled={saving || picks.size === 0}
-          >
-            {saving ? 'Saving...' : 'Submit Picks'}
-          </button>
-          <span className="pick-count">{picks.size} / {pickableGames} picks made{completedGames > 0 ? ` (${completedGames} decided)` : ''}</span>
-          {saveMessage && (
-            <span className={`save-message save-message-${saveMessage.type}`}>
-              {saveMessage.text}
-            </span>
-          )}
         </div>
       )}
 
