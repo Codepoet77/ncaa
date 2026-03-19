@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { googleLogin } from '../services/api.ts';
@@ -23,24 +23,18 @@ export function useAuth(): AuthContextType {
   return context;
 }
 
-function AuthProviderInner({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+function getStoredUser(): User | null {
+  try {
+    const stored = localStorage.getItem('user');
+    return stored ? JSON.parse(stored) : null;
+  } catch {
+    return null;
+  }
+}
 
-  useEffect(() => {
-    const storedToken = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
-    if (storedToken) {
-      setToken(storedToken);
-      if (storedUser) {
-        try {
-          setUser(JSON.parse(storedUser));
-        } catch {
-          // ignore parse errors
-        }
-      }
-    }
-  }, []);
+function AuthProviderInner({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(getStoredUser);
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
 
   const login = useCallback(async (idToken: string) => {
     const response = await googleLogin(idToken);
