@@ -37,7 +37,7 @@ jobs:
         working-directory: src/frontend
 
       - name: TypeScript check
-        run: npx tsc --noEmit
+        run: npx tsc --noEmit -p tsconfig.app.json
         working-directory: src/frontend
 
       - name: Build frontend (Vite)

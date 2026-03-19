@@ -20,7 +20,7 @@ export default function Bracket() {
   const [bracketTitle, setBracketTitle] = useState<string>('');
   const [editingTitle, setEditingTitle] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const initialLoadRef = useRef(true);
 
   useEffect(() => {
