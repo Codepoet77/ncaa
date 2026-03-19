@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router';
 import type { LeaderboardEntry } from '../types/index.ts';
 import { getLeaderboard } from '../services/api.ts';
+import { useAuth } from '../context/AuthContext.tsx';
 
 export default function Leaderboard() {
+  const { user } = useAuth();
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -58,32 +61,43 @@ export default function Leaderboard() {
               </tr>
             </thead>
             <tbody>
-              {entries.map((entry) => (
-                <tr
-                  key={entry.userId}
-                  className={`leaderboard-row ${entry.rank <= 3 ? `rank-${entry.rank}` : ''}`}
-                >
-                  <td className="col-rank">
-                    <span className="rank-badge">
-                      {entry.rank === 1 && '🥇'}
-                      {entry.rank === 2 && '🥈'}
-                      {entry.rank === 3 && '🥉'}
-                      {entry.rank > 3 && entry.rank}
-                    </span>
-                  </td>
-                  <td className="col-player">
-                    <div className="player-info">
-                      <div className="player-avatar-placeholder">
-                        {entry.displayName?.charAt(0)?.toUpperCase() || '?'}
+              {entries.map((entry) => {
+                const isCurrentUser = user?.id === entry.userId;
+                const bracketLink = isCurrentUser ? '/bracket' : `/bracket/${entry.userId}`;
+
+                return (
+                  <tr
+                    key={entry.userId}
+                    className={`leaderboard-row ${entry.rank <= 3 ? `rank-${entry.rank}` : ''}`}
+                  >
+                    <td className="col-rank">
+                      <span className="rank-badge">
+                        {entry.rank === 1 && '🥇'}
+                        {entry.rank === 2 && '🥈'}
+                        {entry.rank === 3 && '🥉'}
+                        {entry.rank > 3 && entry.rank}
+                      </span>
+                    </td>
+                    <td className="col-player">
+                      <div className="player-info">
+                        <div className="player-avatar-placeholder">
+                          {entry.displayName?.charAt(0)?.toUpperCase() || '?'}
+                        </div>
+                        <Link to={bracketLink} className="player-name-link">
+                          {entry.displayName}
+                        </Link>
                       </div>
-                      <span className="player-name">{entry.displayName}</span>
-                    </div>
-                  </td>
-                  <td className="col-bracket">{entry.bracketTitle}</td>
-                  <td className="col-correct">{entry.correctPicks}</td>
-                  <td className="col-points">{entry.totalPoints}</td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="col-bracket">
+                      <Link to={bracketLink} className="bracket-link">
+                        {entry.bracketTitle}
+                      </Link>
+                    </td>
+                    <td className="col-correct">{entry.correctPicks}</td>
+                    <td className="col-points">{entry.totalPoints}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

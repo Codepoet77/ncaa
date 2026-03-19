@@ -4,6 +4,7 @@ import Header from './components/Header.tsx';
 import Home from './pages/Home.tsx';
 import BracketPage from './pages/BracketPage.tsx';
 import LeaderboardPage from './pages/LeaderboardPage.tsx';
+import UserBracketPage from './pages/UserBracketPage.tsx';
 import './App.css';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -20,6 +21,7 @@ function AppRoutes() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/bracket" element={<ProtectedRoute><BracketPage /></ProtectedRoute>} />
+          <Route path="/bracket/:userId" element={<ProtectedRoute><UserBracketPage /></ProtectedRoute>} />
           <Route path="/leaderboard" element={<ProtectedRoute><LeaderboardPage /></ProtectedRoute>} />
         </Routes>
       </main>

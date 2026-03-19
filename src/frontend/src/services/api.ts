@@ -46,6 +46,11 @@ export async function updateBracketTitle(title: string): Promise<void> {
   await api.put('/api/picks/title', { title });
 }
 
+export async function getUserPicks(userId: string): Promise<{ user: { id: string; displayName: string; bracketTitle: string }; picks: UserPickDto[] }> {
+  const response = await api.get(`/api/picks/user/${userId}`);
+  return response.data;
+}
+
 export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
   const response = await api.get('/api/leaderboard');
   return response.data;

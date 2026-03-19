@@ -109,6 +109,35 @@ public class PicksController : ControllerBase
         return Ok(new { message = "Picks saved successfully" });
     }
 
+    [HttpGet("user/{userId}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetUserPicks(Guid userId)
+    {
+        var user = await _db.Users.FindAsync(userId);
+        if (user is null) return NotFound();
+
+        var picks = await _db.UserPicks
+            .Where(p => p.UserId == userId)
+            .Include(p => p.PickedTeam)
+            .OrderBy(p => p.GameId)
+            .Select(p => new UserPickDto
+            {
+                Id = p.Id,
+                GameId = p.GameId,
+                PickedTeamId = p.PickedTeamId,
+                PickedTeamName = p.PickedTeam.Name,
+                IsCorrect = p.IsCorrect,
+                PointsEarned = p.PointsEarned
+            })
+            .ToListAsync();
+
+        return Ok(new
+        {
+            user = new { user.Id, user.DisplayName, user.BracketTitle },
+            picks
+        });
+    }
+
     [HttpGet("title")]
     public async Task<IActionResult> GetBracketTitle()
     {

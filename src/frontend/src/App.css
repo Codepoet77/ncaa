@@ -914,6 +914,32 @@
   font-size: 15px;
 }
 
+.player-name-link,
+.bracket-link {
+  font-weight: 600;
+  color: #60a5fa;
+  text-decoration: none;
+  font-size: 15px;
+}
+
+.player-name-link:hover,
+.bracket-link:hover {
+  color: #93bbfd;
+  text-decoration: underline;
+}
+
+.bracket-subtitle {
+  color: #94a3b8;
+  font-size: 14px;
+  margin: 4px 0 0;
+}
+
+.bracket-stats {
+  color: #64748b;
+  font-size: 13px;
+  margin: 4px 0 0;
+}
+
 /* --- Responsive --- */
 @media (max-width: 768px) {
   .header-inner {
