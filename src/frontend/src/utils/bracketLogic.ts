@@ -92,13 +92,20 @@ export function buildProjectedGames(
         const nextGame = gameIndex.get(nextKey);
 
         if (nextGame && !nextGame.isCompleted) {
-          if (isTeam1Slot) {
-            if (!nextGame.team1 || nextGame.team1.name === 'TBD') {
-              nextGame.team1 = { ...advancingTeam };
-            }
-          } else {
-            if (!nextGame.team2 || nextGame.team2.name === 'TBD') {
-              nextGame.team2 = { ...advancingTeam };
+          // Skip if this team is already in the next game (ESPN may have placed them)
+          const alreadyInGame =
+            (nextGame.team1 && nextGame.team1.id === advancingTeam.id) ||
+            (nextGame.team2 && nextGame.team2.id === advancingTeam.id);
+
+          if (!alreadyInGame) {
+            if (isTeam1Slot) {
+              if (!nextGame.team1 || nextGame.team1.name === 'TBD') {
+                nextGame.team1 = { ...advancingTeam };
+              }
+            } else {
+              if (!nextGame.team2 || nextGame.team2.name === 'TBD') {
+                nextGame.team2 = { ...advancingTeam };
+              }
             }
           }
         }
