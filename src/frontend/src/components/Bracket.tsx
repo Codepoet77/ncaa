@@ -11,7 +11,7 @@ const REGIONS_LEFT = ['East', 'South'];
 const REGIONS_RIGHT = ['West', 'Midwest'];
 
 export default function Bracket() {
-  const { isAuthenticated, user, updateUser } = useAuth();
+  const { isAuthenticated, updateUser } = useAuth();
   const [games, setGames] = useState<Game[]>([]);
   const [settings, setSettings] = useState<TournamentSettings | null>(null);
   const [picks, setPicks] = useState<Map<number, number>>(new Map());
