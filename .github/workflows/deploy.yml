@@ -87,7 +87,7 @@ jobs:
           host: ${{ secrets.DROPLET_HOST }}
           username: ${{ secrets.DROPLET_USER }}
           key: ${{ secrets.DROPLET_SSH_KEY }}
-          source: "docker-compose.prod.yml,src/db/init.sql,src/frontend/nginx-ssl.conf"
+          source: "docker-compose.prod.yml,src/frontend/nginx-ssl.conf"
           target: "/opt/ncaa"
           overwrite: true
 

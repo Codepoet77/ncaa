@@ -60,6 +60,59 @@ builder.Services.AddControllers();
 
 var app = builder.Build();
 
+// Auto-migrate and seed on startup
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+    // If tables exist but no migration history, mark initial migration as applied
+    var pendingMigrations = db.Database.GetPendingMigrations().ToList();
+    var appliedMigrations = db.Database.GetAppliedMigrations().ToList();
+    if (pendingMigrations.Contains("20260319133119_InitialCreate") && appliedMigrations.Count == 0)
+    {
+        try
+        {
+            // Check if tables already exist (created by init.sql)
+            var tableExists = db.Database.ExecuteSqlRaw(
+                "SELECT 1 FROM information_schema.tables WHERE table_name = 'users'") > 0;
+        }
+        catch
+        {
+            // Tables don't exist, let migration create them
+        }
+
+        // If we get here without exception, tables exist — mark migration as applied
+        try
+        {
+            db.Database.ExecuteSqlRaw(
+                @"CREATE TABLE IF NOT EXISTS ""__EFMigrationsHistory"" (
+                    ""MigrationId"" varchar(150) NOT NULL,
+                    ""ProductVersion"" varchar(32) NOT NULL,
+                    CONSTRAINT ""PK___EFMigrationsHistory"" PRIMARY KEY (""MigrationId"")
+                )");
+            db.Database.ExecuteSqlRaw(
+                @"INSERT INTO ""__EFMigrationsHistory"" (""MigrationId"", ""ProductVersion"")
+                  VALUES ('20260319133119_InitialCreate', '9.0.3')
+                  ON CONFLICT DO NOTHING");
+        }
+        catch { /* ignore if already exists */ }
+    }
+
+    db.Database.Migrate();
+
+    // Seed default tournament settings if none exist
+    if (!db.TournamentSettings.Any())
+    {
+        db.TournamentSettings.Add(new NcaaBracket.Api.Models.TournamentSettings
+        {
+            Year = 2026,
+            LockDate = new DateTime(2026, 3, 20, 4, 59, 0, DateTimeKind.Utc),
+            IsLocked = false
+        });
+        db.SaveChanges();
+    }
+}
+
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();

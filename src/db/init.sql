@@ -67,7 +67,7 @@ CREATE TABLE tournament_settings (
 
 -- Insert default tournament settings (lock before first game, March 19 2026)
 INSERT INTO tournament_settings (year, lock_date, is_locked)
-VALUES (2026, '2026-03-19T12:00:00Z', FALSE);
+VALUES (2026, '2026-03-20T04:59:00Z', FALSE);
 
 -- Indexes
 CREATE INDEX idx_user_picks_user_id ON user_picks(user_id);
