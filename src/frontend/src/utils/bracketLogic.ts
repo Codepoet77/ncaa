@@ -62,13 +62,31 @@ export function buildProjectedGames(
 
         // Determine which next-round game this feeds into
         const nextRound = round + 1;
-        const nextPosition = Math.ceil(game.bracketPosition / 2);
-        const isTeam1Slot = game.bracketPosition % 2 === 1;
-
-        // Handle cross-region (Final Four / Championship)
+        let nextPosition: number;
+        let isTeam1Slot: boolean;
         let nextRegion = region;
-        if (round === 4) nextRegion = 'Final Four';
-        if (region === 'Final Four' && round === 5) nextRegion = 'TBD';
+
+        if (round === 4) {
+          // Elite 8 → Final Four: map regions to specific FF games
+          // East vs West = FF game 1, South vs Midwest = FF game 2
+          nextRegion = 'Final Four';
+          if (region === 'East' || region === 'West') {
+            nextPosition = 1;
+            isTeam1Slot = region === 'East';
+          } else {
+            nextPosition = 2;
+            isTeam1Slot = region === 'South';
+          }
+        } else if (region === 'Final Four' && round === 5) {
+          // Final Four → Championship
+          nextRegion = 'TBD';
+          nextPosition = 1;
+          isTeam1Slot = game.bracketPosition === 1;
+        } else {
+          // Normal bracket progression
+          nextPosition = Math.ceil(game.bracketPosition / 2);
+          isTeam1Slot = game.bracketPosition % 2 === 1;
+        }
 
         const nextKey = `${nextRegion}|${nextRound}|${nextPosition}`;
         const nextGame = gameIndex.get(nextKey);
@@ -118,10 +136,22 @@ function clearDownstream(
   removedTeamId: number
 ) {
   const nextRound = game.round + 1;
-  const nextPosition = Math.ceil(game.bracketPosition / 2);
+  let nextPosition: number;
   let nextRegion = game.region;
-  if (game.round === 4) nextRegion = 'Final Four';
-  if (game.region === 'Final Four' && game.round === 5) nextRegion = 'TBD';
+
+  if (game.round === 4) {
+    nextRegion = 'Final Four';
+    if (game.region === 'East' || game.region === 'West') {
+      nextPosition = 1;
+    } else {
+      nextPosition = 2;
+    }
+  } else if (game.region === 'Final Four' && game.round === 5) {
+    nextRegion = 'TBD';
+    nextPosition = 1;
+  } else {
+    nextPosition = Math.ceil(game.bracketPosition / 2);
+  }
 
   const nextGame = games.find(
     (g) => g.region === nextRegion && g.round === nextRound && g.bracketPosition === nextPosition
