@@ -28,11 +28,11 @@ export function buildProjectedGames(
     if (g.team2) teamMap.set(g.team2.id, g.team2);
   }
 
-  // Process rounds in order so results and picks cascade
+  // Process rounds in order so results and picks cascade (skip round 0 / First Four)
   const maxRound = Math.max(...games.map((g) => g.round));
   const regions = [...new Set(games.map((g) => g.region))];
 
-  for (let round = 1; round <= maxRound; round++) {
+  for (let round = 0; round <= maxRound; round++) {
     for (const region of regions) {
       const roundGames = games
         .filter((g) => g.region === region && g.round === round)

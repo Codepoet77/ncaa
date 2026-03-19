@@ -146,7 +146,7 @@ export default function Bracket() {
   const isLocked = settings?.isLocked ?? false;
 
   const regionGames = (regionName: string) =>
-    projectedGames.filter((g) => g.region === regionName && g.round <= 4);
+    projectedGames.filter((g) => g.region === regionName && g.round >= 1 && g.round <= 4);
 
   const finalFourGames = projectedGames.filter((g) => g.round >= 5);
 

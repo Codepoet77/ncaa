@@ -12,6 +12,19 @@ public class EspnSyncService : BackgroundService
     private readonly HttpClient _httpClient;
     private static readonly TimeSpan SyncInterval = TimeSpan.FromMinutes(5);
 
+    // Standard NCAA bracket position by seed matchup (1v16=pos1, 8v9=pos2, etc.)
+    private static readonly Dictionary<int, int> SeedToBracketPosition = new()
+    {
+        { 1, 1 }, { 16, 1 },
+        { 8, 2 }, { 9, 2 },
+        { 5, 3 }, { 12, 3 },
+        { 4, 4 }, { 13, 4 },
+        { 6, 5 }, { 11, 5 },
+        { 3, 6 }, { 14, 6 },
+        { 7, 7 }, { 10, 7 },
+        { 2, 8 }, { 15, 8 },
+    };
+
     public EspnSyncService(IServiceScopeFactory scopeFactory, ILogger<EspnSyncService> logger)
     {
         _scopeFactory = scopeFactory;
@@ -21,7 +34,6 @@ public class EspnSyncService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        // Wait a few seconds for the app to fully start
         await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
 
         while (!stoppingToken.IsCancellationRequested)
@@ -53,24 +65,14 @@ public class EspnSyncService : BackgroundService
             _logger.LogInformation("Tournament locked");
         }
 
-        // Fetch scores for tournament dates (mid-March through early April)
+        // Fetch scores for tournament dates
         var today = DateTime.UtcNow.Date;
-        // Sync a range of dates around the tournament
         var startDate = new DateTime(today.Year, 3, 18);
         var endDate = new DateTime(today.Year, 4, 8);
-        var datesToSync = new List<DateTime>();
 
-        // Sync all tournament dates including future scheduled games
         for (var d = startDate; d <= endDate; d = d.AddDays(1))
         {
-            datesToSync.Add(d);
-        }
-
-        var hasTeams = await db.Teams.AnyAsync(ct);
-
-        foreach (var date in datesToSync)
-        {
-            var dateStr = date.ToString("yyyyMMdd");
+            var dateStr = d.ToString("yyyyMMdd");
             var url = $"https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard?groups=100&limit=100&dates={dateStr}";
 
             _logger.LogInformation("Syncing ESPN data for {Date}", dateStr);
@@ -95,7 +97,7 @@ public class EspnSyncService : BackgroundService
 
             foreach (var evt in events.EnumerateArray())
             {
-                await ProcessEventAsync(db, evt, hasTeams, ct);
+                await ProcessEventAsync(db, evt, ct);
             }
         }
 
@@ -106,7 +108,7 @@ public class EspnSyncService : BackgroundService
         }
     }
 
-    private async Task ProcessEventAsync(AppDbContext db, JsonElement evt, bool teamsExist, CancellationToken ct)
+    private async Task ProcessEventAsync(AppDbContext db, JsonElement evt, CancellationToken ct)
     {
         var espnGameId = evt.GetProperty("id").GetString();
         if (espnGameId is null) return;
@@ -117,7 +119,6 @@ public class EspnSyncService : BackgroundService
         if (!competition.TryGetProperty("competitors", out var competitors)) return;
         if (competitors.GetArrayLength() < 2) return;
 
-        // Extract team info
         var comp1 = competitors[0];
         var comp2 = competitors[1];
 
@@ -142,7 +143,6 @@ public class EspnSyncService : BackgroundService
         int.TryParse(comp2.TryGetProperty("curatedRank", out var rank2)
             ? rank2.TryGetProperty("current", out var r2) ? r2.GetRawText() : "0" : "0", out var team2Seed);
 
-        // Try to get seed from the competitor directly
         if (comp1.TryGetProperty("seed", out var seed1Prop))
             int.TryParse(seed1Prop.GetString() ?? seed1Prop.GetRawText(), out team1Seed);
         if (comp2.TryGetProperty("seed", out var seed2Prop))
@@ -151,12 +151,53 @@ public class EspnSyncService : BackgroundService
         // Determine region and round from competition notes
         var region = "TBD";
         var round = 1;
+        var isFirstFour = false;
 
         if (competition.TryGetProperty("notes", out var notes) && notes.GetArrayLength() > 0)
         {
             var headline = notes[0].TryGetProperty("headline", out var h) ? h.GetString() ?? "" : "";
             region = ParseRegion(headline);
             round = ParseRound(headline);
+            isFirstFour = headline.Contains("First Four", StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Determine bracket position
+        int bracketPosition;
+        if (isFirstFour)
+        {
+            // First Four: use round 0, position based on which First Four game in the region
+            round = 0;
+            var existingFF = await db.Games.CountAsync(
+                g => g.Round == 0 && g.Region == region && g.EspnId != espnGameId, ct);
+            bracketPosition = existingFF + 1;
+        }
+        else if (round == 1)
+        {
+            // Round 1: use seed to determine correct bracket position
+            var higherSeed = Math.Min(team1Seed, team2Seed);
+            bracketPosition = SeedToBracketPosition.GetValueOrDefault(higherSeed, 0);
+            if (bracketPosition == 0)
+            {
+                // Fallback for unknown seeds
+                var maxPos = await db.Games.Where(g => g.Round == 1 && g.Region == region)
+                    .MaxAsync(g => (int?)g.BracketPosition, ct) ?? 0;
+                bracketPosition = maxPos + 1;
+            }
+        }
+        else
+        {
+            // Later rounds: use sequential position within region+round
+            var existing = await db.Games.FirstOrDefaultAsync(g => g.EspnId == espnGameId, ct);
+            if (existing is not null)
+            {
+                bracketPosition = existing.BracketPosition;
+            }
+            else
+            {
+                var maxPos = await db.Games.Where(g => g.Round == round && g.Region == region)
+                    .MaxAsync(g => (int?)g.BracketPosition, ct) ?? 0;
+                bracketPosition = maxPos + 1;
+            }
         }
 
         // Scores
@@ -170,8 +211,7 @@ public class EspnSyncService : BackgroundService
         if (competition.TryGetProperty("status", out var status) &&
             status.TryGetProperty("type", out var statusType))
         {
-            var completed = statusType.TryGetProperty("completed", out var c) && c.GetBoolean();
-            isCompleted = completed;
+            isCompleted = statusType.TryGetProperty("completed", out var c) && c.GetBoolean();
         }
 
         if (isCompleted)
@@ -188,53 +228,54 @@ public class EspnSyncService : BackgroundService
                 gameTime = parsed.ToUniversalTime();
         }
 
-        // Upsert teams
-        var team1 = await db.Teams.FirstOrDefaultAsync(t => t.EspnId == team1EspnId, ct);
-        if (team1 is null)
+        // Upsert teams (skip TBD placeholder teams)
+        Team? team1 = null;
+        Team? team2 = null;
+
+        if (team1Name != "TBD")
         {
-            team1 = new Team
+            team1 = await db.Teams.FirstOrDefaultAsync(t => t.EspnId == team1EspnId, ct);
+            if (team1 is null)
             {
-                EspnId = team1EspnId,
-                Name = team1Name,
-                Seed = team1Seed,
-                Region = region,
-                LogoUrl = team1Logo,
-                ShortName = team1ShortName
-            };
-            db.Teams.Add(team1);
-            await db.SaveChangesAsync(ct);
-        }
-        else
-        {
-            team1.Name = team1Name;
-            team1.Seed = team1Seed;
-            if (region != "TBD") team1.Region = region;
-            team1.LogoUrl = team1Logo;
-            team1.ShortName = team1ShortName;
+                team1 = new Team
+                {
+                    EspnId = team1EspnId, Name = team1Name, Seed = team1Seed,
+                    Region = region, LogoUrl = team1Logo, ShortName = team1ShortName
+                };
+                db.Teams.Add(team1);
+                await db.SaveChangesAsync(ct);
+            }
+            else
+            {
+                team1.Name = team1Name;
+                team1.Seed = team1Seed;
+                if (region != "TBD") team1.Region = region;
+                team1.LogoUrl = team1Logo;
+                team1.ShortName = team1ShortName;
+            }
         }
 
-        var team2 = await db.Teams.FirstOrDefaultAsync(t => t.EspnId == team2EspnId, ct);
-        if (team2 is null)
+        if (team2Name != "TBD")
         {
-            team2 = new Team
+            team2 = await db.Teams.FirstOrDefaultAsync(t => t.EspnId == team2EspnId, ct);
+            if (team2 is null)
             {
-                EspnId = team2EspnId,
-                Name = team2Name,
-                Seed = team2Seed,
-                Region = region,
-                LogoUrl = team2Logo,
-                ShortName = team2ShortName
-            };
-            db.Teams.Add(team2);
-            await db.SaveChangesAsync(ct);
-        }
-        else
-        {
-            team2.Name = team2Name;
-            team2.Seed = team2Seed;
-            if (region != "TBD") team2.Region = region;
-            team2.LogoUrl = team2Logo;
-            team2.ShortName = team2ShortName;
+                team2 = new Team
+                {
+                    EspnId = team2EspnId, Name = team2Name, Seed = team2Seed,
+                    Region = region, LogoUrl = team2Logo, ShortName = team2ShortName
+                };
+                db.Teams.Add(team2);
+                await db.SaveChangesAsync(ct);
+            }
+            else
+            {
+                team2.Name = team2Name;
+                team2.Seed = team2Seed;
+                if (region != "TBD") team2.Region = region;
+                team2.LogoUrl = team2Logo;
+                team2.ShortName = team2ShortName;
+            }
         }
 
         // Upsert game
@@ -243,17 +284,14 @@ public class EspnSyncService : BackgroundService
 
         if (game is null)
         {
-            var maxPos = await db.Games.Where(g => g.Round == round && g.Region == region)
-                .MaxAsync(g => (int?)g.BracketPosition, ct) ?? 0;
-
             game = new Game
             {
                 EspnId = espnGameId,
                 Round = round,
                 Region = region,
-                BracketPosition = maxPos + 1,
-                Team1Id = team1.Id,
-                Team2Id = team2.Id,
+                BracketPosition = bracketPosition,
+                Team1Id = team1?.Id,
+                Team2Id = team2?.Id,
                 Team1Score = team1Score,
                 Team2Score = team2Score,
                 GameTime = gameTime,
@@ -263,13 +301,14 @@ public class EspnSyncService : BackgroundService
         }
         else
         {
-            game.Team1Id = team1.Id;
-            game.Team2Id = team2.Id;
+            if (team1 is not null) game.Team1Id = team1.Id;
+            if (team2 is not null) game.Team2Id = team2.Id;
             game.Team1Score = team1Score;
             game.Team2Score = team2Score;
             game.IsCompleted = isCompleted;
             game.Round = round;
             game.Region = region;
+            game.BracketPosition = bracketPosition;
             if (gameTime.HasValue)
                 game.GameTime = gameTime;
         }
@@ -277,7 +316,8 @@ public class EspnSyncService : BackgroundService
         if (isCompleted && winnerEspnId is not null)
         {
             var winner = winnerEspnId == team1EspnId ? team1 : team2;
-            game.WinnerId = winner.Id;
+            if (winner is not null)
+                game.WinnerId = winner.Id;
         }
 
         await db.SaveChangesAsync(ct);
@@ -303,9 +343,7 @@ public class EspnSyncService : BackgroundService
 
     private static int ParseRound(string headline)
     {
-        // Check specific round names before "Championship" since all headlines contain
-        // "NCAA Men's Basketball Championship - Region - Round"
-        if (headline.Contains("First Four", StringComparison.OrdinalIgnoreCase)) return 1;
+        if (headline.Contains("First Four", StringComparison.OrdinalIgnoreCase)) return 0;
         if (headline.Contains("1st Round", StringComparison.OrdinalIgnoreCase) ||
             headline.Contains("First Round", StringComparison.OrdinalIgnoreCase)) return 1;
         if (headline.Contains("2nd Round", StringComparison.OrdinalIgnoreCase) ||

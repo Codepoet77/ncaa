@@ -29,7 +29,7 @@ CREATE TABLE teams (
 CREATE TABLE games (
     id SERIAL PRIMARY KEY,
     espn_id VARCHAR(50) UNIQUE,
-    round INT NOT NULL CHECK (round BETWEEN 1 AND 6),
+    round INT NOT NULL CHECK (round BETWEEN 0 AND 6),
     region VARCHAR(50),
     bracket_position INT NOT NULL,
     team1_id INT REFERENCES teams(id),
