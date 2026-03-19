@@ -1,0 +1,32 @@
+#!/bin/bash
+echo "Running pre-push checks..."
+
+# Backend build
+echo "Building backend..."
+dotnet build src/backend/NcaaBracket.Api/NcaaBracket.Api.csproj --configuration Release --nologo -v q 2>&1
+if [ $? -ne 0 ]; then
+  echo "❌ Backend build failed"
+  exit 1
+fi
+echo "✅ Backend build passed"
+
+# Frontend TypeScript check
+echo "Checking frontend TypeScript..."
+cd src/frontend
+npx tsc --noEmit -p tsconfig.app.json 2>&1
+if [ $? -ne 0 ]; then
+  echo "❌ TypeScript check failed"
+  exit 1
+fi
+echo "✅ TypeScript check passed"
+
+# Frontend Vite build
+echo "Building frontend..."
+npx vite build 2>&1 | tail -3
+if [ $? -ne 0 ]; then
+  echo "❌ Frontend build failed"
+  exit 1
+fi
+echo "✅ Frontend build passed"
+
+echo "All checks passed ✅"
