@@ -1,12 +1,44 @@
-name: Deploy to Digital Ocean
+name: Build & Deploy
 
 on:
   push:
     branches: [main]
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '21'
+
+      - name: Build backend
+        run: dotnet build src/backend/NcaaBracket.Api/NcaaBracket.Api.csproj --configuration Release
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: src/frontend
+
+      - name: TypeScript check
+        run: npx tsc --noEmit
+        working-directory: src/frontend
+
+      - name: Build frontend
+        run: npm run build
+        working-directory: src/frontend
+
   deploy:
     runs-on: ubuntu-latest
+    needs: build
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
