@@ -102,15 +102,33 @@ export default function Bracket() {
     [games, picks]
   );
 
+  // Build set of eliminated team IDs
+  const eliminatedTeamIds = useMemo(() => {
+    const eliminated = new Set<number>();
+    for (const game of games) {
+      if (game.isCompleted && game.winnerId != null) {
+        if (game.team1 && game.team1.id !== game.winnerId) eliminated.add(game.team1.id);
+        if (game.team2 && game.team2.id !== game.winnerId) eliminated.add(game.team2.id);
+      }
+    }
+    return eliminated;
+  }, [games]);
+
   const handlePickTeam = useCallback((gameId: number, teamId: number) => {
     setPicks((prev) => {
       const next = new Map(prev);
       const currentPick = next.get(gameId);
 
       if (currentPick === teamId) {
+        // Don't allow deselecting if the picked team is eliminated
+        if (eliminatedTeamIds.has(teamId)) return prev;
         next.delete(gameId);
         return clearCascadingPicks(games, next, gameId, teamId);
       } else {
+        // Don't allow picking an eliminated team
+        if (eliminatedTeamIds.has(teamId)) return prev;
+        // Don't allow changing away from an eliminated team pick
+        if (currentPick != null && eliminatedTeamIds.has(currentPick)) return prev;
         if (currentPick != null) {
           const cleared = clearCascadingPicks(games, next, gameId, currentPick);
           cleared.set(gameId, teamId);
@@ -120,7 +138,7 @@ export default function Bracket() {
         return next;
       }
     });
-  }, [games]);
+  }, [games, eliminatedTeamIds]);
 
   const handleSaveTitle = async () => {
     if (!bracketTitle.trim()) return;

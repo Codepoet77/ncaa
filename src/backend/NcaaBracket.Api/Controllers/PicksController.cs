@@ -65,6 +65,20 @@ public class PicksController : ControllerBase
         var teamIds = request.Picks.Select(p => p.PickedTeamId).ToHashSet();
         var validTeamIds = await _db.Teams.Where(t => teamIds.Contains(t.Id)).Select(t => t.Id).ToHashSetAsync();
 
+        // Build set of eliminated teams
+        var completedGames = await _db.Games
+            .Where(g => g.IsCompleted && g.WinnerId != null)
+            .Select(g => new { g.Team1Id, g.Team2Id, g.WinnerId })
+            .ToListAsync();
+        var eliminatedTeamIds = new HashSet<int>();
+        foreach (var cg in completedGames)
+        {
+            if (cg.Team1Id.HasValue && cg.Team1Id != cg.WinnerId)
+                eliminatedTeamIds.Add(cg.Team1Id.Value);
+            if (cg.Team2Id.HasValue && cg.Team2Id != cg.WinnerId)
+                eliminatedTeamIds.Add(cg.Team2Id.Value);
+        }
+
         foreach (var pick in request.Picks)
         {
             if (!games.ContainsKey(pick.GameId))
@@ -84,6 +98,10 @@ public class PicksController : ControllerBase
 
             // Don't allow changing picks for completed games
             if (game.IsCompleted)
+                continue;
+
+            // Don't allow picking eliminated teams
+            if (eliminatedTeamIds.Contains(pick.PickedTeamId))
                 continue;
 
             if (existingPicks.TryGetValue(pick.GameId, out var existing))
