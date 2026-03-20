@@ -5,10 +5,11 @@ interface FinalFourProps {
   games: Game[];
   picks: Map<number, number>;
   isLocked: boolean;
+  eliminatedTeamIds: Set<number>;
   onPickTeam: (gameId: number, teamId: number) => void;
 }
 
-export default function FinalFour({ games, picks, isLocked, onPickTeam }: FinalFourProps) {
+export default function FinalFour({ games, picks, isLocked, eliminatedTeamIds, onPickTeam }: FinalFourProps) {
   const semiFinals = games
     .filter((g) => g.round === 5)
     .sort((a, b) => a.bracketPosition - b.bracketPosition);
@@ -27,6 +28,7 @@ export default function FinalFour({ games, picks, isLocked, onPickTeam }: FinalF
                 game={game}
                 pickedTeamId={picks.get(game.id) ?? null}
                 isLocked={isLocked}
+                eliminatedTeamIds={eliminatedTeamIds}
                 onPickTeam={onPickTeam}
               />
             ))}
@@ -42,6 +44,7 @@ export default function FinalFour({ games, picks, isLocked, onPickTeam }: FinalF
                 game={game}
                 pickedTeamId={picks.get(game.id) ?? null}
                 isLocked={isLocked}
+                eliminatedTeamIds={eliminatedTeamIds}
                 onPickTeam={onPickTeam}
               />
             ))}

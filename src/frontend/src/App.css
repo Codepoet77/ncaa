@@ -681,6 +681,19 @@
   font-weight: 700;
 }
 
+.team-eliminated {
+  opacity: 0.5;
+}
+
+.team-name-eliminated {
+  text-decoration: line-through;
+  color: #ef4444 !important;
+}
+
+.team-logo-eliminated {
+  opacity: 0.4;
+}
+
 /* --- Bracket Connecting Lines --- */
 /* Left region: lines go from right side of earlier rounds to left side of later rounds */
 .bracket-region-left .round-1 .game-matchup {

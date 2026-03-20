@@ -231,6 +231,7 @@ export default function Bracket() {
               games={regionGames(region)}
               picks={picks}
               isLocked={isLocked || !isAuthenticated}
+              eliminatedTeamIds={eliminatedTeamIds}
               onPickTeam={handlePickTeam}
               side="left"
             />
@@ -242,6 +243,7 @@ export default function Bracket() {
             games={finalFourGames}
             picks={picks}
             isLocked={isLocked || !isAuthenticated}
+            eliminatedTeamIds={eliminatedTeamIds}
             onPickTeam={handlePickTeam}
           />
         </div>
@@ -254,6 +256,7 @@ export default function Bracket() {
               games={regionGames(region)}
               picks={picks}
               isLocked={isLocked || !isAuthenticated}
+              eliminatedTeamIds={eliminatedTeamIds}
               onPickTeam={handlePickTeam}
               side="right"
             />

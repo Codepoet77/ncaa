@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, } from 'react';
 import { useParams } from 'react-router';
 import type { Game } from '../types/index.ts';
 import { getBracket, getUserPicks } from '../services/api.ts';
@@ -72,6 +72,17 @@ export default function UserBracketPage() {
 
   const noop = () => {};
 
+  const eliminatedTeamIds = useMemo(() => {
+    const eliminated = new Set<number>();
+    for (const game of games) {
+      if (game.isCompleted && game.winnerId != null) {
+        if (game.team1 && game.team1.id !== game.winnerId) eliminated.add(game.team1.id);
+        if (game.team2 && game.team2.id !== game.winnerId) eliminated.add(game.team2.id);
+      }
+    }
+    return eliminated;
+  }, [games]);
+
   const regionGames = (regionName: string) =>
     projectedGames.filter((g) => g.region === regionName && g.round >= 1 && g.round <= 4);
 
@@ -99,6 +110,7 @@ export default function UserBracketPage() {
                 games={regionGames(region)}
                 picks={picks}
                 isLocked={true}
+                eliminatedTeamIds={eliminatedTeamIds}
                 onPickTeam={noop}
                 side="left"
               />
@@ -110,6 +122,7 @@ export default function UserBracketPage() {
               games={finalFourGames}
               picks={picks}
               isLocked={true}
+              eliminatedTeamIds={eliminatedTeamIds}
               onPickTeam={noop}
             />
           </div>
@@ -122,6 +135,7 @@ export default function UserBracketPage() {
                 games={regionGames(region)}
                 picks={picks}
                 isLocked={true}
+                eliminatedTeamIds={eliminatedTeamIds}
                 onPickTeam={noop}
                 side="right"
               />

@@ -6,6 +6,7 @@ interface BracketRegionProps {
   games: Game[];
   picks: Map<number, number>;
   isLocked: boolean;
+  eliminatedTeamIds: Set<number>;
   onPickTeam: (gameId: number, teamId: number) => void;
   side: 'left' | 'right';
 }
@@ -22,6 +23,7 @@ export default function BracketRegion({
   games,
   picks,
   isLocked,
+  eliminatedTeamIds,
   onPickTeam,
   side,
 }: BracketRegionProps) {
@@ -51,6 +53,7 @@ export default function BracketRegion({
                   game={game}
                   pickedTeamId={picks.get(game.id) ?? null}
                   isLocked={isLocked}
+                  eliminatedTeamIds={eliminatedTeamIds}
                   onPickTeam={onPickTeam}
                 />
               ))}
