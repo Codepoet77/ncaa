@@ -29,6 +29,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Role).HasColumnName("role").HasDefaultValue("user");
             entity.Property(e => e.CreatedAt).HasColumnName("created_at");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(e => e.LastLoginAt).HasColumnName("last_login_at");
             entity.HasIndex(e => e.GoogleId).IsUnique();
         });
 

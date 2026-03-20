@@ -48,6 +48,7 @@ export interface LeaderboardEntry {
   maxPossiblePoints: number;
   correctPicks: number;
   lastPickAt?: string;
+  lastLoginAt?: string;
 }
 
 export interface TournamentSettings {

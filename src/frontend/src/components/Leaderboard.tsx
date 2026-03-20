@@ -70,6 +70,7 @@ export default function Leaderboard() {
                 <th className="col-correct">Correct Picks</th>
                 <th className="col-points">Points</th>
                 <th className="col-max-points">Max Possible</th>
+                {isAdmin && <th className="col-last-login">Last Login</th>}
                 {isAdmin && <th className="col-last-pick">Last Pick</th>}
               </tr>
             </thead>
@@ -109,6 +110,11 @@ export default function Leaderboard() {
                     <td className="col-correct">{entry.correctPicks}</td>
                     <td className="col-points">{entry.totalPoints}</td>
                     <td className="col-max-points">{entry.maxPossiblePoints}</td>
+                    {isAdmin && (
+                      <td className="col-last-login">
+                        {entry.lastLoginAt ? formatDate(entry.lastLoginAt) : '—'}
+                      </td>
+                    )}
                     {isAdmin && (
                       <td className="col-last-pick">
                         {entry.lastPickAt ? formatDate(entry.lastPickAt) : '—'}

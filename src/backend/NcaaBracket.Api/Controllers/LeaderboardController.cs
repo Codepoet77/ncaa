@@ -60,6 +60,7 @@ public class LeaderboardController : ControllerBase
             var lastPick = isAdmin
                 ? u.UserPicks.OrderByDescending(p => p.UpdatedAt).FirstOrDefault()?.UpdatedAt
                 : null;
+            var lastLogin = isAdmin ? u.LastLoginAt : null;
 
             return new LeaderboardEntry
             {
@@ -70,7 +71,8 @@ public class LeaderboardController : ControllerBase
                 TotalPoints = earnedPoints,
                 MaxPossiblePoints = earnedPoints + pendingPoints,
                 CorrectPicks = correctPicks,
-                LastPickAt = lastPick
+                LastPickAt = lastPick,
+                LastLoginAt = lastLogin
             };
         })
         .OrderByDescending(e => e.TotalPoints)

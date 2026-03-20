@@ -43,7 +43,8 @@ public class AuthController : ControllerBase
                 AvatarUrl = payload.Picture,
                 BracketTitle = $"{firstName}'s Bracket",
                 CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
+                UpdatedAt = DateTime.UtcNow,
+                LastLoginAt = DateTime.UtcNow
             };
             _db.Users.Add(user);
             await _db.SaveChangesAsync();
@@ -54,6 +55,7 @@ public class AuthController : ControllerBase
             user.DisplayName = payload.Name ?? payload.Email;
             user.AvatarUrl = payload.Picture;
             user.UpdatedAt = DateTime.UtcNow;
+            user.LastLoginAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();
         }
 
