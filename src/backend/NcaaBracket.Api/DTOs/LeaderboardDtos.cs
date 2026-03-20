@@ -8,5 +8,6 @@ public class LeaderboardEntry
     public string? AvatarUrl { get; set; }
     public string? BracketTitle { get; set; }
     public int TotalPoints { get; set; }
+    public int MaxPossiblePoints { get; set; }
     public int CorrectPicks { get; set; }
 }

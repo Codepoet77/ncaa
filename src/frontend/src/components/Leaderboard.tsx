@@ -58,6 +58,7 @@ export default function Leaderboard() {
                 <th className="col-bracket">Bracket</th>
                 <th className="col-correct">Correct Picks</th>
                 <th className="col-points">Points</th>
+                <th className="col-max-points">Max Possible</th>
               </tr>
             </thead>
             <tbody>
@@ -95,6 +96,7 @@ export default function Leaderboard() {
                     </td>
                     <td className="col-correct">{entry.correctPicks}</td>
                     <td className="col-points">{entry.totalPoints}</td>
+                    <td className="col-max-points">{entry.maxPossiblePoints}</td>
                   </tr>
                 );
               })}

@@ -45,6 +45,7 @@ export interface LeaderboardEntry {
   avatarUrl: string;
   bracketTitle: string;
   totalPoints: number;
+  maxPossiblePoints: number;
   correctPicks: number;
 }
 
