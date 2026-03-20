@@ -119,8 +119,16 @@ public class PicksController : ControllerBase
         var picks = await _db.UserPicks
             .Where(p => p.UserId == userId)
             .Include(p => p.PickedTeam)
+            .Include(p => p.Game)
             .OrderBy(p => p.GameId)
-            .Select(p => new UserPickDto
+            .ToListAsync();
+
+        var stats = CalculatePickStats(picks);
+
+        return Ok(new
+        {
+            user = new { user.Id, user.DisplayName, user.BracketTitle },
+            picks = picks.Select(p => new UserPickDto
             {
                 Id = p.Id,
                 GameId = p.GameId,
@@ -128,14 +136,52 @@ public class PicksController : ControllerBase
                 PickedTeamName = p.PickedTeam.Name,
                 IsCorrect = p.IsCorrect,
                 PointsEarned = p.PointsEarned
-            })
+            }),
+            stats
+        });
+    }
+
+    [HttpGet("stats")]
+    public async Task<IActionResult> GetPickStats()
+    {
+        var userId = GetUserId();
+        var picks = await _db.UserPicks
+            .Where(p => p.UserId == userId)
+            .Include(p => p.Game)
             .ToListAsync();
 
-        return Ok(new
+        return Ok(CalculatePickStats(picks));
+    }
+
+    private object CalculatePickStats(List<UserPick> picks)
+    {
+        // Get eliminated teams
+        var completedGames = _db.Games
+            .Where(g => g.IsCompleted && g.WinnerId != null)
+            .Select(g => new { g.Team1Id, g.Team2Id, g.WinnerId })
+            .ToList();
+
+        var eliminatedTeamIds = new HashSet<int>();
+        foreach (var game in completedGames)
         {
-            user = new { user.Id, user.DisplayName, user.BracketTitle },
-            picks
-        });
+            if (game.Team1Id.HasValue && game.Team1Id != game.WinnerId)
+                eliminatedTeamIds.Add(game.Team1Id.Value);
+            if (game.Team2Id.HasValue && game.Team2Id != game.WinnerId)
+                eliminatedTeamIds.Add(game.Team2Id.Value);
+        }
+
+        var totalPoints = picks.Sum(p => p.PointsEarned);
+        var correctPicks = picks.Count(p => p.IsCorrect == true);
+        var pendingPoints = picks
+            .Where(p => p.IsCorrect == null && !eliminatedTeamIds.Contains(p.PickedTeamId))
+            .Sum(p => p.Game?.Round ?? 0);
+
+        return new
+        {
+            totalPoints,
+            maxPossiblePoints = totalPoints + pendingPoints,
+            correctPicks
+        };
     }
 
     [HttpGet("title")]

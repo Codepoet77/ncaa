@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { Game, UserPick } from '../types/index.ts';
 import type { TournamentSettings } from '../types/index.ts';
-import { getBracket, getSettings, getPicks, submitPicks, getBracketTitle, updateBracketTitle } from '../services/api.ts';
+import { getBracket, getSettings, getPicks, submitPicks, getBracketTitle, updateBracketTitle, getPickStats } from '../services/api.ts';
 import { useAuth } from '../context/AuthContext.tsx';
 import { buildProjectedGames, clearCascadingPicks } from '../utils/bracketLogic.ts';
 import BracketRegion from './BracketRegion.tsx';
@@ -20,6 +20,7 @@ export default function Bracket() {
   const [bracketTitle, setBracketTitle] = useState<string>('');
   const [editingTitle, setEditingTitle] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [stats, setStats] = useState<{ totalPoints: number; maxPossiblePoints: number; correctPicks: number } | null>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const initialLoadRef = useRef(true);
 
@@ -51,6 +52,11 @@ export default function Bracket() {
           } catch {
             // User may not have picks yet
           }
+          try {
+            setStats(await getPickStats());
+          } catch {
+            // stats not critical
+          }
         }
       } catch (err) {
         setError('Failed to load bracket data. Please try again later.');
@@ -79,6 +85,7 @@ export default function Bracket() {
         await submitPicks(picksArray);
         setSaveStatus('saved');
         setTimeout(() => setSaveStatus('idle'), 2000);
+        try { setStats(await getPickStats()); } catch { /* */ }
       } catch (err) {
         setSaveStatus('error');
         console.error('Failed to auto-save picks:', err);
@@ -173,6 +180,11 @@ export default function Bracket() {
               {bracketTitle}
               {!isLocked && <span className="bracket-title-edit-icon">&#9998;</span>}
             </h2>
+          )}
+          {stats && (
+            <p className="bracket-stats">
+              {stats.totalPoints} pts — Max possible: {stats.maxPossiblePoints} pts
+            </p>
           )}
           {saveStatus === 'saving' && <span className="auto-save-status saving">Saving...</span>}
           {saveStatus === 'saved' && <span className="auto-save-status saved">Saved</span>}

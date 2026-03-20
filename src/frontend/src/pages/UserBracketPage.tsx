@@ -15,6 +15,7 @@ export default function UserBracketPage() {
   const [picks, setPicks] = useState<Map<number, number>>(new Map());
   const [bracketTitle, setBracketTitle] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [stats, setStats] = useState<{ totalPoints: number; maxPossiblePoints: number; correctPicks: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,6 +31,7 @@ export default function UserBracketPage() {
         setGames(bracketData);
         setBracketTitle(userData.user.bracketTitle || `${userData.user.displayName}'s Bracket`);
         setDisplayName(userData.user.displayName);
+        if (userData.stats) setStats(userData.stats);
 
         const picksMap = new Map<number, number>();
         for (const pick of userData.picks) {
@@ -71,15 +73,9 @@ export default function UserBracketPage() {
   const noop = () => {};
 
   const regionGames = (regionName: string) =>
-    projectedGames.filter((g) => g.region === regionName && g.round <= 4);
+    projectedGames.filter((g) => g.region === regionName && g.round >= 1 && g.round <= 4);
 
   const finalFourGames = projectedGames.filter((g) => g.round >= 5);
-
-  const completedGames = games.filter((g) => g.isCompleted).length;
-  const correctPicks = Array.from(picks.entries()).filter(([gameId]) => {
-    const game = games.find((g) => g.id === gameId);
-    return game?.isCompleted && game.winnerId === picks.get(gameId);
-  }).length;
 
   return (
     <div className="page bracket-page">
@@ -87,8 +83,10 @@ export default function UserBracketPage() {
         <div className="bracket-title-bar">
           <h2 className="bracket-title">{bracketTitle}</h2>
           <p className="bracket-subtitle">by {displayName}</p>
-          {completedGames > 0 && (
-            <p className="bracket-stats">{correctPicks} correct out of {completedGames} decided</p>
+          {stats && (
+            <p className="bracket-stats">
+              {stats.totalPoints} pts — Max possible: {stats.maxPossiblePoints} pts
+            </p>
           )}
         </div>
 

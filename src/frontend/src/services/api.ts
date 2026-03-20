@@ -46,8 +46,13 @@ export async function updateBracketTitle(title: string): Promise<void> {
   await api.put('/api/picks/title', { title });
 }
 
-export async function getUserPicks(userId: string): Promise<{ user: { id: string; displayName: string; bracketTitle: string }; picks: UserPickDto[] }> {
+export async function getUserPicks(userId: string): Promise<{ user: { id: string; displayName: string; bracketTitle: string }; picks: UserPickDto[]; stats: { totalPoints: number; maxPossiblePoints: number; correctPicks: number } }> {
   const response = await api.get(`/api/picks/user/${userId}`);
+  return response.data;
+}
+
+export async function getPickStats(): Promise<{ totalPoints: number; maxPossiblePoints: number; correctPicks: number }> {
+  const response = await api.get('/api/picks/stats');
   return response.data;
 }
 
