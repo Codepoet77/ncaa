@@ -10,4 +10,5 @@ public class LeaderboardEntry
     public int TotalPoints { get; set; }
     public int MaxPossiblePoints { get; set; }
     public int CorrectPicks { get; set; }
+    public DateTime? LastPickAt { get; set; }
 }

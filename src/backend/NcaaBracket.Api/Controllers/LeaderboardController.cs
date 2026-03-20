@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using NcaaBracket.Api.Data;
@@ -19,7 +20,15 @@ public class LeaderboardController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<List<LeaderboardEntry>>> GetLeaderboard()
     {
-        // Get all eliminated teams (teams that lost a completed game)
+        // Check if the requesting user is an admin
+        var isAdmin = false;
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userIdClaim != null && Guid.TryParse(userIdClaim, out var currentUserId))
+        {
+            var currentUser = await _db.Users.FindAsync(currentUserId);
+            isAdmin = currentUser?.Role == "admin";
+        }
+
         var completedGames = await _db.Games
             .Where(g => g.IsCompleted && g.WinnerId != null)
             .Select(g => new { g.Team1Id, g.Team2Id, g.WinnerId })
@@ -34,7 +43,6 @@ public class LeaderboardController : ControllerBase
                 eliminatedTeamIds.Add(game.Team2Id.Value);
         }
 
-        // Get all users with their picks and associated game rounds
         var users = await _db.Users
             .Include(u => u.UserPicks)
             .ThenInclude(p => p.Game)
@@ -45,10 +53,13 @@ public class LeaderboardController : ControllerBase
             var earnedPoints = u.UserPicks.Sum(p => p.PointsEarned);
             var correctPicks = u.UserPicks.Count(p => p.IsCorrect == true);
 
-            // Max possible = earned points + points from pending picks where team is still alive
             var pendingPoints = u.UserPicks
                 .Where(p => p.IsCorrect == null && !eliminatedTeamIds.Contains(p.PickedTeamId))
                 .Sum(p => p.Game?.Round ?? 0);
+
+            var lastPick = isAdmin
+                ? u.UserPicks.OrderByDescending(p => p.UpdatedAt).FirstOrDefault()?.UpdatedAt
+                : null;
 
             return new LeaderboardEntry
             {
@@ -58,7 +69,8 @@ public class LeaderboardController : ControllerBase
                 BracketTitle = u.BracketTitle ?? u.DisplayName + "'s Bracket",
                 TotalPoints = earnedPoints,
                 MaxPossiblePoints = earnedPoints + pendingPoints,
-                CorrectPicks = correctPicks
+                CorrectPicks = correctPicks,
+                LastPickAt = lastPick
             };
         })
         .OrderByDescending(e => e.TotalPoints)

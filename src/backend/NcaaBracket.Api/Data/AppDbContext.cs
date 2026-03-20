@@ -26,6 +26,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.DisplayName).HasColumnName("display_name");
             entity.Property(e => e.AvatarUrl).HasColumnName("avatar_url");
             entity.Property(e => e.BracketTitle).HasColumnName("bracket_title");
+            entity.Property(e => e.Role).HasColumnName("role").HasDefaultValue("user");
             entity.Property(e => e.CreatedAt).HasColumnName("created_at");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
             entity.HasIndex(e => e.GoogleId).IsUnique();

@@ -47,6 +47,7 @@ export interface LeaderboardEntry {
   totalPoints: number;
   maxPossiblePoints: number;
   correctPicks: number;
+  lastPickAt?: string;
 }
 
 export interface TournamentSettings {
@@ -61,4 +62,5 @@ export interface User {
   displayName: string;
   avatarUrl: string;
   bracketTitle?: string;
+  role?: string;
 }

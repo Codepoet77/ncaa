@@ -4,11 +4,22 @@ import type { LeaderboardEntry } from '../types/index.ts';
 import { getLeaderboard } from '../services/api.ts';
 import { useAuth } from '../context/AuthContext.tsx';
 
+function formatDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  return d.toLocaleString('en-US', {
+    month: 'short', day: 'numeric',
+    hour: 'numeric', minute: '2-digit',
+    hour12: true,
+  });
+}
+
 export default function Leaderboard() {
   const { user } = useAuth();
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const isAdmin = user?.role === 'admin';
 
   useEffect(() => {
     async function loadLeaderboard() {
@@ -59,6 +70,7 @@ export default function Leaderboard() {
                 <th className="col-correct">Correct Picks</th>
                 <th className="col-points">Points</th>
                 <th className="col-max-points">Max Possible</th>
+                {isAdmin && <th className="col-last-pick">Last Pick</th>}
               </tr>
             </thead>
             <tbody>
@@ -97,6 +109,11 @@ export default function Leaderboard() {
                     <td className="col-correct">{entry.correctPicks}</td>
                     <td className="col-points">{entry.totalPoints}</td>
                     <td className="col-max-points">{entry.maxPossiblePoints}</td>
+                    {isAdmin && (
+                      <td className="col-last-pick">
+                        {entry.lastPickAt ? formatDate(entry.lastPickAt) : '—'}
+                      </td>
+                    )}
                   </tr>
                 );
               })}

@@ -68,7 +68,8 @@ public class AuthController : ControllerBase
                 Email = user.Email,
                 DisplayName = user.DisplayName,
                 AvatarUrl = user.AvatarUrl,
-                BracketTitle = user.BracketTitle
+                BracketTitle = user.BracketTitle,
+                Role = user.Role
             }
         });
     }
