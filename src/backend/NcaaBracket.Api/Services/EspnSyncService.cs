@@ -65,7 +65,6 @@ public class EspnSyncService : BackgroundService
             _logger.LogInformation("Tournament locked");
         }
 
-        // Fetch scores for tournament dates
         var today = DateTime.UtcNow.Date;
         var startDate = new DateTime(today.Year, 3, 18);
         var endDate = new DateTime(today.Year, 4, 8);
@@ -165,7 +164,6 @@ public class EspnSyncService : BackgroundService
         int bracketPosition;
         if (isFirstFour)
         {
-            // First Four: use round 0, position based on which First Four game in the region
             round = 0;
             var existingFF = await db.Games.CountAsync(
                 g => g.Round == 0 && g.Region == region && g.EspnId != espnGameId, ct);
@@ -178,7 +176,6 @@ public class EspnSyncService : BackgroundService
             bracketPosition = SeedToBracketPosition.GetValueOrDefault(higherSeed, 0);
             if (bracketPosition == 0)
             {
-                // Fallback for unknown seeds
                 var maxPos = await db.Games.Where(g => g.Round == 1 && g.Region == region)
                     .MaxAsync(g => (int?)g.BracketPosition, ct) ?? 0;
                 bracketPosition = maxPos + 1;
@@ -186,17 +183,23 @@ public class EspnSyncService : BackgroundService
         }
         else
         {
-            // Later rounds: use sequential position within region+round
+            // R2+: determine position by matching teams to feeder games from the previous round
             var existing = await db.Games.FirstOrDefaultAsync(g => g.EspnId == espnGameId, ct);
             if (existing is not null)
             {
-                bracketPosition = existing.BracketPosition;
+                // Already have a position — recalculate to fix any bad positions
+                bracketPosition = await CalculateLaterRoundPosition(db, round, region, team1EspnId, team2EspnId, ct);
+                if (bracketPosition == 0) bracketPosition = existing.BracketPosition;
             }
             else
             {
-                var maxPos = await db.Games.Where(g => g.Round == round && g.Region == region)
-                    .MaxAsync(g => (int?)g.BracketPosition, ct) ?? 0;
-                bracketPosition = maxPos + 1;
+                bracketPosition = await CalculateLaterRoundPosition(db, round, region, team1EspnId, team2EspnId, ct);
+                if (bracketPosition == 0)
+                {
+                    var maxPos = await db.Games.Where(g => g.Round == round && g.Region == region)
+                        .MaxAsync(g => (int?)g.BracketPosition, ct) ?? 0;
+                    bracketPosition = maxPos + 1;
+                }
             }
         }
 
@@ -328,6 +331,80 @@ public class EspnSyncService : BackgroundService
             var scoringService = new ScoringService(db);
             await scoringService.ScoreGameAsync(game.Id);
         }
+    }
+
+    /// <summary>
+    /// For R2+ games, determine bracket position by finding which previous-round games
+    /// contain the same teams. R2 pos = ceil(feederR1pos / 2), etc.
+    /// </summary>
+    private async Task<int> CalculateLaterRoundPosition(
+        AppDbContext db, int round, string region,
+        string? team1EspnId, string? team2EspnId, CancellationToken ct)
+    {
+        var prevRound = round - 1;
+        var prevRegion = region;
+
+        // Final Four games come from Elite 8 in specific regions
+        if (round == 5 && region == "Final Four")
+        {
+            // Can't determine position from teams alone for Final Four
+            // Use team's region to figure out which FF game
+            if (team1EspnId != null || team2EspnId != null)
+            {
+                var espnId = team1EspnId ?? team2EspnId;
+                var team = await db.Teams.FirstOrDefaultAsync(t => t.EspnId == espnId, ct);
+                if (team != null)
+                {
+                    return (team.Region == "East" || team.Region == "West") ? 1 : 2;
+                }
+            }
+            return 0;
+        }
+
+        // Championship
+        if (round == 6)
+        {
+            return 1;
+        }
+
+        // For R2-R4: find feeder games from previous round in the same region
+        var prevGames = await db.Games
+            .Where(g => g.Round == prevRound && g.Region == prevRegion)
+            .Include(g => g.Team1)
+            .Include(g => g.Team2)
+            .ToListAsync(ct);
+
+        if (prevGames.Count == 0) return 0;
+
+        // Find which previous-round game contains one of our teams
+        foreach (var prevGame in prevGames)
+        {
+            var prevTeamEspnIds = new HashSet<string?> {
+                prevGame.Team1?.EspnId, prevGame.Team2?.EspnId
+            };
+
+            if ((team1EspnId != null && prevTeamEspnIds.Contains(team1EspnId)) ||
+                (team2EspnId != null && prevTeamEspnIds.Contains(team2EspnId)))
+            {
+                // This previous game feeds into our game
+                // Position = ceil(prevPosition / 2)
+                return (int)Math.Ceiling(prevGame.BracketPosition / 2.0);
+            }
+
+            // Also check winners
+            if (prevGame.WinnerId != null)
+            {
+                var winner = prevGame.Team1?.Id == prevGame.WinnerId ? prevGame.Team1 : prevGame.Team2;
+                if (winner != null &&
+                    ((team1EspnId != null && winner.EspnId == team1EspnId) ||
+                     (team2EspnId != null && winner.EspnId == team2EspnId)))
+                {
+                    return (int)Math.Ceiling(prevGame.BracketPosition / 2.0);
+                }
+            }
+        }
+
+        return 0;
     }
 
     private static string ParseRegion(string headline)
