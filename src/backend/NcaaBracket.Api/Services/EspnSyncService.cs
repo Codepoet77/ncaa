@@ -184,22 +184,32 @@ public class EspnSyncService : BackgroundService
         else
         {
             // R2+: determine position by matching teams to feeder games from the previous round
-            var existing = await db.Games.FirstOrDefaultAsync(g => g.EspnId == espnGameId, ct);
-            if (existing is not null)
+            bracketPosition = await CalculateLaterRoundPosition(db, round, region, team1EspnId, team2EspnId, ct);
+
+            if (bracketPosition == 0)
             {
-                // Already have a position — recalculate to fix any bad positions
-                bracketPosition = await CalculateLaterRoundPosition(db, round, region, team1EspnId, team2EspnId, ct);
-                if (bracketPosition == 0) bracketPosition = existing.BracketPosition;
-            }
-            else
-            {
-                bracketPosition = await CalculateLaterRoundPosition(db, round, region, team1EspnId, team2EspnId, ct);
-                if (bracketPosition == 0)
+                // Can't determine from teams (both TBD) — find next available position
+                var takenPositions = await db.Games
+                    .Where(g => g.Round == round && g.Region == region && g.EspnId != espnGameId)
+                    .Select(g => g.BracketPosition)
+                    .ToListAsync(ct);
+
+                var expectedCount = round switch
                 {
-                    var maxPos = await db.Games.Where(g => g.Round == round && g.Region == region)
-                        .MaxAsync(g => (int?)g.BracketPosition, ct) ?? 0;
-                    bracketPosition = maxPos + 1;
+                    2 => 4, 3 => 2, 4 => 1, 5 => 2, 6 => 1, _ => 4
+                };
+
+                for (var pos = 1; pos <= expectedCount; pos++)
+                {
+                    if (!takenPositions.Contains(pos))
+                    {
+                        bracketPosition = pos;
+                        break;
+                    }
                 }
+
+                if (bracketPosition == 0)
+                    bracketPosition = takenPositions.Count + 1;
             }
         }
 
