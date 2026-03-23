@@ -19,6 +19,17 @@ export default function UserBracketPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const eliminatedTeamIds = useMemo(() => {
+    const eliminated = new Set<number>();
+    for (const game of games) {
+      if (game.isCompleted && game.winnerId != null) {
+        if (game.team1 && game.team1.id !== game.winnerId) eliminated.add(game.team1.id);
+        if (game.team2 && game.team2.id !== game.winnerId) eliminated.add(game.team2.id);
+      }
+    }
+    return eliminated;
+  }, [games]);
+
   useEffect(() => {
     async function loadData() {
       if (!userId) return;
@@ -71,17 +82,6 @@ export default function UserBracketPage() {
   }
 
   const noop = () => {};
-
-  const eliminatedTeamIds = useMemo(() => {
-    const eliminated = new Set<number>();
-    for (const game of games) {
-      if (game.isCompleted && game.winnerId != null) {
-        if (game.team1 && game.team1.id !== game.winnerId) eliminated.add(game.team1.id);
-        if (game.team2 && game.team2.id !== game.winnerId) eliminated.add(game.team2.id);
-      }
-    }
-    return eliminated;
-  }, [games]);
 
   const regionGames = (regionName: string) =>
     projectedGames.filter((g) => g.region === regionName && g.round >= 1 && g.round <= 4);
